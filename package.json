@@ -1,0 +1,50 @@
+{
+  "name": "cairnmark",
+  "version": "0.1.0",
+  "description": "Official Node.js client for the CairnMark file service",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test && prettier --check src test",
+    "format": "prettier --write src test",
+    "test": "vitest run",
+    "test:integration": "CAIRNMARK_INTEGRATION=1 vitest run test/integration.test.ts"
+  },
+  "license": "MIT",
+  "author": "Michael Ramirez",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mettjs/cairnmark-node.git"
+  },
+  "keywords": [
+    "cairnmark",
+    "file-storage",
+    "s3",
+    "client"
+  ],
+  "devDependencies": {
+    "@eslint/js": "^9",
+    "@types/node": "^22",
+    "eslint": "^9",
+    "prettier": "^3",
+    "tsup": "^8",
+    "typescript": "^5",
+    "typescript-eslint": "^8",
+    "vitest": "^3"
+  }
+}
