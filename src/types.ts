@@ -55,11 +55,20 @@ export function parseListPage(data: any): ListPage {
   };
 }
 
+/**
+ * Whether files extracted from archives appear in a listing: together with
+ * everything else (`include`, the default), hidden (`exclude`), or alone
+ * (`only`). The archives themselves are found with `tags: { [TAG_ARCHIVE]: "true" }`.
+ */
+export type EntryScope = "include" | "exclude" | "only";
+
 export interface ListFilter {
   /** Filter by exact MIME type. */
   contentType?: string;
   /** Filter by tag equality; multiple entries are ANDed. */
   tags?: Record<string, string>;
+  /** Scope files extracted from archives; default `include`. */
+  entries?: EntryScope;
   /** Page size (server default 50, max 500; the server clamps and echoes). */
   limit?: number;
   /** Resume after a previous page — pass ListPage.nextCursor. */
@@ -110,4 +119,99 @@ export interface DownloadOptions {
 export interface Download {
   stream: ReadableStream<Uint8Array>;
   file: FileRecord;
+}
+
+/**
+ * Tag keys the server writes on extracted archive entries and on archives.
+ * Reserved — the server rejects any client writing a `cm:` key — but readable:
+ * filter by them to find an archive's entries.
+ */
+/** On an extracted entry: the id of the archive it came from. */
+export const TAG_ARCHIVE_ID = "cm:archive_id";
+/** On an extracted entry: its full path inside the archive. */
+export const TAG_ARCHIVE_PATH = "cm:archive_path";
+/** On an extracted entry: its index in the archive's directory (a number). */
+export const TAG_ARCHIVE_INDEX = "cm:archive_index";
+/** On an archive that has been extracted, with the value "true". */
+export const TAG_ARCHIVE = "cm:archive";
+
+/**
+ * One member of a stored zip, as read from its directory. `index` is the
+ * handle to extract by: names need not be unique inside a zip, indexes are,
+ * and the archive is immutable so an index stays valid.
+ */
+export interface ArchiveEntry {
+  index: number;
+  /** Full path inside the archive. */
+  name: string;
+  /** Uncompressed length in bytes. */
+  size: number;
+  /** From the name's extension; undefined when unknown (the server sniffs on extraction). */
+  contentType?: string;
+  /** The archive's own checksum of the content, hex-encoded. */
+  crc32: string;
+  /** false when the server would skip the entry; `reason` says why. */
+  selectable: boolean;
+  /** e.g. "platform_metadata", "encrypted", "unsupported_method". */
+  reason?: string;
+}
+
+export function parseArchiveEntries(data: any): ArchiveEntry[] {
+  return (data.entries ?? []).map((e: any): ArchiveEntry => ({
+    index: e.index,
+    name: e.name,
+    size: e.size,
+    contentType: e.content_type ?? undefined,
+    crc32: e.crc32,
+    selectable: !!e.selectable,
+    reason: e.reason ?? undefined,
+  }));
+}
+
+/** One skipped entry and why. */
+export interface SkippedEntry {
+  index: number;
+  name: string;
+  reason: string;
+}
+
+/**
+ * The server's bounded report of one extraction. It never lists the files
+ * created: enumerate them with `listAll` and a `TAG_ARCHIVE_ID` filter.
+ */
+export interface ExtractSummary {
+  archiveId: string;
+  /** Entries in the archive's directory. */
+  entries: number;
+  extracted: number;
+  skipped: number;
+  /** Skips per reason ("platform_metadata", "already_extracted", "not_selected", …). */
+  skippedByReason: Record<string, number>;
+  /** The first skipped entries (at most 20). */
+  sampleSkipped: SkippedEntry[];
+}
+
+export function parseExtractSummary(data: any): ExtractSummary {
+  return {
+    archiveId: data.archive_id,
+    entries: data.entries,
+    extracted: data.extracted,
+    skipped: data.skipped,
+    skippedByReason: data.skipped_by_reason ?? {},
+    sampleSkipped: (data.sample_skipped ?? []).map((s: any): SkippedEntry => ({
+      index: s.index,
+      name: s.name,
+      reason: s.reason,
+    })),
+  };
+}
+
+export interface ExtractOptions {
+  /**
+   * Restrict the run to these directory indexes (from `archiveEntries`).
+   * Undefined extracts every selectable entry; an empty array extracts
+   * nothing. An index outside the directory rejects with InvalidRequestError.
+   */
+  entries?: number[];
+  signal?: AbortSignal;
 }

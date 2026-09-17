@@ -6,6 +6,7 @@ import {
   IdempotencyConflictError,
   IdempotencyGoneError,
   InvalidRequestError,
+  NotArchiveError,
   NotFoundError,
   RangeNotSatisfiableError,
   ServerError,
@@ -27,6 +28,7 @@ describe("error mapping", () => {
     [409, IdempotencyConflictError],
     [410, IdempotencyGoneError],
     [413, TooLargeError],
+    [415, NotArchiveError],
     [416, RangeNotSatisfiableError],
     [500, ServerError],
   ];

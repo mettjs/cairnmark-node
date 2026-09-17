@@ -25,11 +25,13 @@ export function sleep(ms: number): Promise<void> {
 /** Map a non-2xx response to a typed APIError, consuming the body. */
 export async function errorFromResponse(res: Response): Promise<APIError> {
   let message = "";
+  let jobId: string | undefined;
   try {
     const text = await res.text();
     try {
       const body = JSON.parse(text);
       message = typeof body?.error === "string" ? body.error : "";
+      jobId = typeof body?.job_id === "string" && body.job_id ? body.job_id : undefined;
     } catch {
       message = text.trim();
     }
@@ -39,7 +41,26 @@ export async function errorFromResponse(res: Response): Promise<APIError> {
   if (!message) message = `HTTP ${res.status}`;
   const ra = res.headers.get("retry-after") ?? "";
   const retryAfterMs = /^\d+$/.test(ra) && Number(ra) > 0 ? Number(ra) * 1000 : undefined;
-  return new (errorClassFor(res.status))(res.status, message, retryAfterMs);
+  return new (errorClassFor(res.status))(res.status, message, retryAfterMs, jobId);
+}
+
+/** Resolve after `ms`, or reject with the signal's reason if it aborts first. */
+export function sleepAbortable(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      reject(signal!.reason);
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 export function unexpectedStatus(res: Response, want: number): APIError {
@@ -55,6 +76,7 @@ export function listQuery(filter: ListFilter): string {
   const q = new URLSearchParams();
   if (filter.contentType) q.set("content_type", filter.contentType);
   for (const [key, value] of Object.entries(filter.tags ?? {})) q.set(`tag.${key}`, value);
+  if (filter.entries) q.set("entries", filter.entries);
   if (filter.limit) q.set("limit", String(filter.limit));
   if (filter.cursor) q.set("cursor", filter.cursor);
   const s = q.toString();

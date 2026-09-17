@@ -29,6 +29,8 @@ export class APIError extends CairnMarkError {
     readonly serverMessage: string,
     /** Milliseconds the server asked to wait (409 conflicts); else undefined. */
     readonly retryAfterMs?: number,
+    /** On a 409 extraction conflict: the id of the job holding the archive. */
+    readonly jobId?: string,
   ) {
     super(`cairnmark: server returned ${status}: ${serverMessage}`);
   }
@@ -37,10 +39,17 @@ export class APIError extends CairnMarkError {
 /** 400: malformed request — bad id, bad parameters, bad metadata JSON. */
 export class InvalidRequestError extends APIError {}
 
-/** 404: the file id does not exist (or was soft-deleted). */
+/**
+ * 404: the file id does not exist (or was soft-deleted), or the job id does
+ * not exist (or was purged past the server's retention).
+ */
 export class NotFoundError extends APIError {}
 
-/** 409: an upload with the same Idempotency-Key is still in flight. */
+/**
+ * 409: an upload with the same Idempotency-Key is still in flight
+ * (`retryAfterMs` says when to ask again), or another extraction job for the
+ * same archive is pending or running (`jobId` names it — the one to poll).
+ */
 export class IdempotencyConflictError extends APIError {}
 
 /**
@@ -49,8 +58,14 @@ export class IdempotencyConflictError extends APIError {}
  */
 export class IdempotencyGoneError extends APIError {}
 
-/** 413: the body exceeds a server cap (upload size or metadata patch). */
+/**
+ * 413: the body exceeds a server cap (upload size or metadata patch), or an
+ * archive exceeds the extraction caps.
+ */
 export class TooLargeError extends APIError {}
+
+/** 415: an archive endpoint was pointed at a file that is not a zip. */
+export class NotArchiveError extends APIError {}
 
 /** 416: the requested byte range lies outside the file. */
 export class RangeNotSatisfiableError extends APIError {}
@@ -64,6 +79,7 @@ const BY_STATUS: Record<number, typeof APIError> = {
   409: IdempotencyConflictError,
   410: IdempotencyGoneError,
   413: TooLargeError,
+  415: NotArchiveError,
   416: RangeNotSatisfiableError,
 };
 

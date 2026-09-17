@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CairnMark, InvalidRequestError } from "../src/index.js";
+import { CairnMark, CairnMarkError, InvalidRequestError } from "../src/index.js";
 import { fileJson, sendJson, serve, type Handler } from "./helpers.js";
 
 describe("list", () => {
@@ -15,6 +15,7 @@ describe("list", () => {
     const page = await cm.list({
       contentType: "text/plain",
       tags: { env: "demo" },
+      entries: "only",
       limit: 10,
       cursor: "cur1",
     });
@@ -23,8 +24,14 @@ describe("list", () => {
     const params = new URL(seenUrl, "http://x").searchParams;
     expect(params.get("content_type")).toBe("text/plain");
     expect(params.get("tag.env")).toBe("demo");
+    expect(params.get("entries")).toBe("only");
     expect(params.get("limit")).toBe("10");
     expect(params.get("cursor")).toBe("cur1");
+  });
+
+  it("rejects a bad entries scope before any request", async () => {
+    const cm = new CairnMark("http://localhost:1");
+    await expect(cm.list({ entries: "archives" as any })).rejects.toBeInstanceOf(CairnMarkError);
   });
 });
 
